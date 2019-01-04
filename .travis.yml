@@ -6,7 +6,7 @@ script: gatsby build
 deploy:
   provider: s3
   access_key_id: $AWS_KEY
-  secret_acess_key: $AWS_SECRET
+  secret_access_key: $AWS_SECRET
   bucket: 'gatsby-test-deploy'
   skip_cleanup: true
   acl: public_read
