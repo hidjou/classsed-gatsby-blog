@@ -1,0 +1,13 @@
+language: node_js
+node_js:
+  - 8.14.0
+install: yarn
+script: gatsby build
+deploy:
+  provider: s3
+  access_key_id: $AWS_KEY
+  secret_acess_key: $AWS_SECRET
+  bucket: 'gatsby-test-deploy'
+  skip_cleanup: true
+  acl: public_read
+  local_dir: public
