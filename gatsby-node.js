@@ -1,5 +1,5 @@
-const { slugify } = require('./src/util/utilityFunctions')
 const path = require('path')
+const { slugify } = require('./src/util/utilityFunctions')
 const authors = require('./src/util/authors')
 const _ = require('lodash')
 
@@ -15,18 +15,19 @@ exports.onCreateNode = ({ node, actions }) => {
   }
 }
 
-exports.createPages = ({ actions, graphql }) => {
+exports.createPages = async ({ actions, graphql }) => {
   const { createPage } = actions
 
+  // Page templates
   const templates = {
-    singlePost: path.resolve('src/templates/single-post.js'),
-    tagsPage: path.resolve('src/templates/tags-page.js'),
-    tagPosts: path.resolve('src/templates/tag-posts.js'),
+    post: path.resolve('src/templates/single-post.js'),
     postList: path.resolve('src/templates/post-list.js'),
+    tag: path.resolve('src/templates/tag-posts.js'),
+    tagsPage: path.resolve('src/templates/tags-page.js'),
     authorPosts: path.resolve('src/templates/author-posts.js'),
   }
 
-  return graphql(`
+  const res = await graphql(`
     {
       allMarkdownRemark {
         edges {
@@ -42,94 +43,97 @@ exports.createPages = ({ actions, graphql }) => {
         }
       }
     }
-  `).then(res => {
-    if (res.errors) return Promise.reject(res.errors)
+  `)
 
-    const posts = res.data.allMarkdownRemark.edges
+  if (res.errors) return Promise.reject(res.errors)
 
-    // Create single blog post pages
-    posts.forEach(({ node }) => {
-      createPage({
-        path: node.fields.slug,
-        component: templates.singlePost,
-        context: {
-          // Passing slug for template to use to get post
-          slug: node.fields.slug,
-          // Find author imageUrl from authors and pass it to the single post template
-          imageUrl: authors.find(x => x.name === node.frontmatter.author)
-            .imageUrl,
-        },
-      })
-    })
+  // Extracting all posts from res
+  const posts = res.data.allMarkdownRemark.edges
 
-    // Get all tags
-    let tags = []
-    _.each(posts, edge => {
-      if (_.get(edge, 'node.frontmatter.tags')) {
-        tags = tags.concat(edge.node.frontmatter.tags)
-      }
-    })
-
-    // ['design', 'code', ...]
-    // {design: 5, code: 6, ...}
-    let tagPostCounts = {}
-    tags.forEach(tag => {
-      tagPostCounts[tag] = (tagPostCounts[tag] || 0) + 1
-    })
-
-    tags = _.uniq(tags)
-
-    // Create tags page
+  // Create single post pages
+  posts.forEach(({ node }) => {
     createPage({
-      path: `/tags`,
-      component: templates.tagsPage,
+      path: node.fields.slug,
+      component: templates.post,
       context: {
-        tags,
-        tagPostCounts,
+        // Passing slug for template to use to fetch the post
+        slug: node.fields.slug,
+        // Find author imageUrl from author array and pass it to template
+        imageUrl: authors.find(x => x.name === node.frontmatter.author)
+          .imageUrl,
       },
     })
+  })
 
-    // Create tag posts pages
-    tags.forEach(tag => {
-      createPage({
-        path: `/tag/${slugify(tag)}`,
-        component: templates.tagPosts,
-        context: {
-          tag,
-        },
-      })
+  // Create posts pagination pages
+  const postsPerPage = 2
+  const numberOfPages = Math.ceil(posts.length / postsPerPage)
+
+  Array.from({ length: numberOfPages }).forEach((_, index) => {
+    const isFirstPage = index === 0
+    const currentPage = index + 1
+
+    // Skip first page because of index.js
+    if (isFirstPage) return
+
+    createPage({
+      path: `/page/${currentPage}`,
+      component: templates.postList,
+      context: {
+        limit: postsPerPage,
+        skip: index * postsPerPage,
+        numberOfPages: numberOfPages,
+        currentPage: currentPage,
+      },
     })
+  })
+  // Get all tags
+  let tags = []
+  _.each(posts, edge => {
+    if (_.get(edge, 'node.frontmatter.tags')) {
+      tags = tags.concat(edge.node.frontmatter.tags)
+    }
+  })
 
-    const postsPerPage = 2
-    const numberOfPages = Math.ceil(posts.length / postsPerPage)
+  let tagPostCounts = {} // { tutorial: 2, design: 1}
+  tags.forEach(tag => {
+    // Or 0 cause it might not exist yet
+    tagPostCounts[tag] = (tagPostCounts[tag] || 0) + 1
+  })
 
-    Array.from({ length: numberOfPages }).forEach((_, index) => {
-      const isFirstPage = index === 0
-      const currentPage = index + 1
+  // Remove duplicates
+  tags = _.uniq(tags)
 
-      if (isFirstPage) return
+  // Tags page (all tags)
+  createPage({
+    path: '/tags',
+    component: templates.tagsPage,
+    context: {
+      tags,
+      tagPostCounts,
+    },
+  })
 
-      createPage({
-        path: `/page/${currentPage}`,
-        component: templates.postList,
-        context: {
-          limit: postsPerPage,
-          skip: index * postsPerPage,
-          currentPage,
-          numberOfPages,
-        },
-      })
+  // Tag posts pages
+  tags.forEach(tag => {
+    createPage({
+      path: `/tag/${_.kebabCase(tag)}`,
+      component: templates.tag,
+      context: {
+        tag,
+      },
     })
+  })
 
-    authors.forEach(author => {
-      createPage({
-        path: `/author/${slugify(author.name)}`,
-        component: templates.authorPosts,
-        context: {
-          authorName: author.name,
-          imageUrl: author.imageUrl,
-        },
-      })
+  // Create author posts pages
+  authors.forEach(author => {
+    createPage({
+      path: `/author/${slugify(author.name)}`,
+      component: templates.authorPosts,
+      context: {
+        authorName: author.name,
+        imageUrl: author.imageUrl,
+      },
     })
   })
 }

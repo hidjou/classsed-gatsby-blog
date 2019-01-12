@@ -8,7 +8,7 @@ import { slugify } from '../util/utilityFunctions'
 import authors from '../util/authors'
 import { DiscussionEmbed } from 'disqus-react'
 
-const SinglePost = ({ data, pageContext }) => {
+const SinglePost = ({ data, pageContext, location }) => {
   const post = data.markdownRemark.frontmatter
   const author = authors.find(x => x.name === post.author)
 
@@ -27,7 +27,14 @@ const SinglePost = ({ data, pageContext }) => {
       postAuthor={author}
       authorImageFluid={data.file.childImageSharp.fluid}
     >
-      <SEO title={post.title} />
+      <SEO
+        author={post.author}
+        title={post.title}
+        keywords={post.tags}
+        description={post.description}
+        url={baseUrl}
+        pathname={location.pathname}
+      />
       <Card>
         <Img
           className="card-image-top"
